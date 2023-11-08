@@ -13,20 +13,63 @@ int connectToServer();
 bool login(int clientSocket);
 void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToReceive);
 void cleanup(int clientSocket);
+void autentificare(int clientSocket);
 
 int main() {
-    int clientSocket = connectToServer();
-    if (login(clientSocket)) {
-        printf("Login reușit!\n");
-    } else {
-        printf("Login nereușit. Programul se închide.\n");
+    int optiune;
+    int clientSocket=connectToServer();
+    printf("1.Login\n");
+    printf("2.Autentificare\n");
+    printf("3.Exit\n");
+    printf("Dati optiunea:");
+    scanf("%d",&optiune);
+    if(optiune==1)
+    {
+        if (login(clientSocket)) {
+            printf("Login reușit!\n");
+        } else {
+            printf("Login nereușit. Programul se închide.\n");
+        }
+    }
+    else if(optiune==2)
+    {
+        autentificare(clientSocket);
+    }
+    else if(optiune==3)
+    {
+        exit(1);
     }
 
     cleanup(clientSocket);
 
     return 0;
 }
-
+void autentificare(int clientSocket)
+{
+    char username[20];
+    char password[20];
+    printf("Username:");
+    scanf("%s",username);
+    printf("Password:");
+    scanf("%s",password);
+    char messageToSend[80];
+    strcpy(messageToSend,"2 ");
+    strcat(messageToSend,username);
+    strcat(messageToSend," ");
+    strcat(messageToSend,password);
+    char messageReceived[80];
+    sendMessageToServer(clientSocket,messageToSend,messageReceived);
+    if(strcmp(messageReceived,"EXISTA")==0)
+        {
+            printf("User-ul exista deja! Try again later!");
+            exit(1);
+        }
+    if(strstr("OK",messageReceived)==0)
+        {
+            printf("Autentificare reusita cu succes!");
+            exit(1);
+        }
+}
 int connectToServer() {
     int clientSocket;
     struct sockaddr_in serverAddr;
@@ -49,6 +92,7 @@ int connectToServer() {
 }
 
 bool login(int clientSocket) {
+   
     char username[20];
     char password[20];
     printf("Username:");
@@ -64,7 +108,7 @@ bool login(int clientSocket) {
     
     sendMessageToServer(clientSocket, messageToSend, messageToReceive);
 
-    return strcmp(messageToReceive, "DA") == 0;
+    return strcmp(messageToReceive,"DA") == 0;
 }
 
 void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToReceive) {
@@ -81,8 +125,7 @@ void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToR
             
         }
         else
-        {
-            printf("%s",messageToReceive);
+        {   printf("%s",messageToReceive);
             break;
         }
     }

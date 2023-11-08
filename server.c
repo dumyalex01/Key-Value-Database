@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
+#include <fcntl.h>
+
 #define PORT 12345
 #define BUFFER_SIZE 1024
 
@@ -13,13 +15,39 @@ void sendMessageToClient(int clientSocket, char* messageToSend);
 void cleanup(int clientSocket);
 char* execute_login(char*buffer);
 char* execute_command(char*buffer);
-bool verify_credentials(char*username,char*password);
+bool verify_credentials(char*username,char*password,bool forLogin);
+char* execute_autentificare(char* buffer);
 int main() {
-    run(establish_connection());
+    
+   //run(establish_connection());
     return 0;
 }
 
-bool verify_credentials(char*username,char*password)
+char* execute_autentificare(char*buffer)
+{
+    char*word=strtok(buffer," ");
+    char username[20];
+    char password[20];
+    int counter=0;
+    while(word!=NULL)
+    {
+        if(counter==1)
+            strcpy(username,word);
+            else if(counter==2)
+                strcpy(password,word);
+        counter++;
+        word=strtok(NULL," ");
+    }
+    if(verify_credentials(username,password,false))
+        return "EXISTA";
+     else {
+    FILE*f =fopen("./serverUtils/credentials.txt","a");
+    fprintf(f,"%s %s\n",username,password);
+    fclose(f);
+     return "OK";
+     }
+}
+bool verify_credentials(char*username,char*password,bool forLogin)
 {  
      FILE*f=fopen("./serverUtils/credentials.txt","rt");
      if(f==NULL)
@@ -33,13 +61,28 @@ bool verify_credentials(char*username,char*password)
      while(!feof(f))
      {
         fscanf(f,"%s %s",username_buff,password_buff);
+        if(forLogin)
+        {
         if(strcmp(username_buff,username)==0 && strcmp(password_buff,password)==0)
+            return true;
+        }
+        else if(strcmp(username_buff,username)==0)
             return true;
 
      }
      return false;
 }
+char* execute_command(char* buffer)
+{
+    char protocol=buffer[0];
+    char* messageToSend=malloc(sizeof(char)*50);
+    if(buffer[0]=='1')
+        strcpy(messageToSend,execute_login(buffer));
+    if(buffer[0]=='2')
+        strcpy(messageToSend,execute_autentificare(buffer));
+    return messageToSend;
 
+}
 char* execute_login(char* buffer)
 {   
     char*word=strtok(buffer," ");
@@ -55,7 +98,7 @@ char* execute_login(char* buffer)
         counter++;
         word=strtok(NULL," ");
     }
-    if(verify_credentials(username,password))
+    if(verify_credentials(username,password,true))
         return "DA";
         else return "NU";
     
@@ -103,14 +146,11 @@ void run(int clientSocket) {
     while (1) {
         memset(buffer, 0, BUFFER_SIZE);
         int messageReceived = recv(clientSocket, buffer, BUFFER_SIZE, 0);
-        if (messageReceived <=0) {
-            perror("Socket gol!!");
-
-        }
-        else{
+       if(messageReceived>0)
+       {
         //Aici functie execute_command care returneaza un char* de trimis,In ea vor fi functii pentru fiecare comanda(login,autentif,set,get,...);
         char message[250];
-        strcpy(message,execute_login(buffer));
+        strcpy(message,execute_command(buffer));
         sendMessageToClient(clientSocket, message);
         
         }
