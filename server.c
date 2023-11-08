@@ -5,10 +5,58 @@
 #include <arpa/inet.h>
 #include <stdbool.h>
 #include <fcntl.h>
-
-#define PORT 12345
+#include <signal.h>
+#define PORT 12347
 #define BUFFER_SIZE 1024
 
+typedef struct listNode
+{
+    char username[30];
+    char password[30];
+    struct listNode*next;
+}listNode;
+
+void insertElement(listNode**A,char*username,char*password)
+{
+    if(*A==NULL)
+    {
+        (*A)=(listNode*)malloc(sizeof(listNode));
+        strcpy((*A)->username,username);
+        strcpy((*A)->password,password);
+        (*A)->next=NULL;
+    }
+    else
+    {
+        listNode* newnode=(listNode*)malloc(sizeof(listNode));
+        strcpy(newnode->password,password);
+        strcpy(newnode->username,username);
+        newnode->next=(*A);
+        (*A)=newnode;
+    }
+}
+bool findElement(listNode*A,char username[30],char password[30])
+{
+    while(A!=NULL)
+    {
+        if(strcmp(A->username,username)==0&&strcmp(A->password,password)==0)
+            return true;
+        A=A->next;
+    }
+    return false;
+}
+bool findUsername(listNode*A,char username[30])
+{
+    while(A!=NULL)
+    {
+        if(strcmp(A->username,username)==0)
+        return true;
+        A=A->next;
+    }
+    return false;
+}
+
+listNode*loginList=NULL;
+void populate_loginList(listNode**list);
 int establish_connection();
 void run(int clientSocket);
 void sendMessageToClient(int clientSocket, char* messageToSend);
@@ -18,11 +66,41 @@ char* execute_command(char*buffer);
 bool verify_credentials(char*username,char*password,bool forLogin);
 char* execute_autentificare(char* buffer);
 int main() {
-    
-   //run(establish_connection());
+    populate_loginList(&loginList);
+    run(establish_connection());
     return 0;
 }
 
+
+void populate_loginList(listNode**list)
+{
+    int fd=open("./serverUtils/credentials.txt",O_RDONLY);
+    if(fd<0)
+    {
+        perror("Problema la deschiderea fisierului!");
+        exit(1);
+    }
+    else
+    {   char buffer[5000];
+        int bufferSize=read(fd,buffer,5000);
+        char*p =strtok(buffer,"\n ");
+        int counter=0;
+        char username[25];
+        char password[25];
+        while(p!=NULL)
+        {   
+            if(counter%2==0)
+                strcpy(username,p);
+                else
+                {
+                    strcpy(password,p);
+                    insertElement(&*list,username,password);
+                }
+                counter++;
+            p=strtok(NULL," \n");
+        }
+    }
+}
 char* execute_autentificare(char*buffer)
 {
     char*word=strtok(buffer," ");
@@ -49,36 +127,26 @@ char* execute_autentificare(char*buffer)
 }
 bool verify_credentials(char*username,char*password,bool forLogin)
 {  
-     FILE*f=fopen("./serverUtils/credentials.txt","rt");
-     if(f==NULL)
-     {
-        perror("Eroare la deschiderea fisierului de credentiale!");
-        exit(1);
-     }
-     
-     char username_buff[20];
-     char password_buff[20];
-     while(!feof(f))
-     {
-        fscanf(f,"%s %s",username_buff,password_buff);
+     listNode*A=loginList;
         if(forLogin)
-        {
-        if(strcmp(username_buff,username)==0 && strcmp(password_buff,password)==0)
-            return true;
-        }
-        else if(strcmp(username_buff,username)==0)
-            return true;
-
-     }
+           {
+             if(findElement(A,username,password));
+                return true;
+           }
+        else
+            if(findUsername(A,username))
+                return true;
      return false;
 }
+
 char* execute_command(char* buffer)
 {
-    char protocol=buffer[0];
+    char*protocol=strtok(buffer," ");
+    printf("%s",protocol);
     char* messageToSend=malloc(sizeof(char)*50);
-    if(buffer[0]=='1')
+    if(strcmp(protocol,"LOGIN")==0)
         strcpy(messageToSend,execute_login(buffer));
-    if(buffer[0]=='2')
+    if(strcmp(protocol,"AUTH")==0)
         strcpy(messageToSend,execute_autentificare(buffer));
     return messageToSend;
 
@@ -108,17 +176,20 @@ int establish_connection() {
     int serverSocket, clientSocket;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t addrLen = sizeof(clientAddr);
+    int opt = 1;
 
     if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("Eroare la crearea socket-ului server");
         exit(1);
     }
 
+    setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
+
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(PORT);
     serverAddr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
+    if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         perror("Eroare la legarea socket-ului la port");
         exit(1);
     }
@@ -129,16 +200,20 @@ int establish_connection() {
     }
 
     printf("Serverul așteaptă conexiuni...\n");
-
-    clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &addrLen);
-    if (clientSocket == -1) {
-        perror("Eroare la acceptarea conexiunii");
-        exit(1);
+    bool isClientConnected=false;
+    // Așteptați conexiunea clientului doar dacă acesta nu este conectat
+    if (!isClientConnected) {
+        clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &addrLen);
+        if (clientSocket == -1) {
+            perror("Eroare la acceptarea conexiunii");
+            exit(1);
+        }
+        isClientConnected = true; // Marcați starea conexiunii ca fiind adevărată
     }
+
     close(serverSocket);
     return clientSocket;
 }
-
 void run(int clientSocket) {
    
     printf("Clientul s-a conectat.\n");
@@ -155,6 +230,7 @@ void run(int clientSocket) {
         
         }
     }
+
     cleanup(clientSocket);
 }
 

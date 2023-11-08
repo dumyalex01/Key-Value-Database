@@ -4,8 +4,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
-
-#define PORT 12345
+#include <fcntl.h>
+#define PORT 12347
 #define SERVER_IP "127.0.0.1"
 #define BUFFER_SIZE 1024
 
@@ -14,9 +14,17 @@ bool login(int clientSocket);
 void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToReceive);
 void cleanup(int clientSocket);
 void autentificare(int clientSocket);
+void run_commander();
+void run();
 
 int main() {
-    int optiune;
+   
+    run();
+    return 0;
+}
+void run()
+{
+     int optiune;
     int clientSocket=connectToServer();
     printf("1.Login\n");
     printf("2.Autentificare\n");
@@ -27,6 +35,7 @@ int main() {
     {
         if (login(clientSocket)) {
             printf("Login reușit!\n");
+            run_commander();
         } else {
             printf("Login nereușit. Programul se închide.\n");
         }
@@ -41,8 +50,54 @@ int main() {
     }
 
     cleanup(clientSocket);
-
-    return 0;
+}
+bool verify_command(char* command)
+{   
+    char*commandType=strtok(command," ");
+    int n=strlen(commandType);
+    commandType[n-1]='\0';
+    int fd=open("comenzi.txt",O_RDONLY);
+    if(fd<0)
+    {
+        perror("Eroare la deschiderea fisierului de comenzi!");
+        exit(1);
+    }
+    else
+    {
+        char buffer[250];
+        int bytesNumber=read(fd,buffer,250);
+        char*line=strtok(buffer,"\n");
+        while(line!=NULL)
+        {  
+            if(strcmp(line,commandType)==0)
+                return true;
+            line=strtok(NULL,"\n ");
+        }
+    }
+    return false;
+}
+void run_commander()
+{   
+    char*command=(char*)malloc(sizeof(char)*50);
+    char*receiver=(char*)malloc(sizeof(char)*40);
+    bool firstTry=true;
+    printf(">");
+    fgets(command,50,stdin);
+    do
+    {   
+          printf(">");
+          fgets(command,50,stdin);
+        if(!verify_command(command))
+            printf("Comanda gresita!Incercati din nou!\n");
+        else
+        {
+            if(strcmp(command,"EXIT")==0)
+                exit(1);
+        }
+        
+    }while(1);
+    free(receiver);
+    free(command);
 }
 void autentificare(int clientSocket)
 {
@@ -53,7 +108,7 @@ void autentificare(int clientSocket)
     printf("Password:");
     scanf("%s",password);
     char messageToSend[80];
-    strcpy(messageToSend,"2 ");
+    strcpy(messageToSend,"AUTH ");
     strcat(messageToSend,username);
     strcat(messageToSend," ");
     strcat(messageToSend,password);
@@ -101,7 +156,7 @@ bool login(int clientSocket) {
     scanf("%s", password);
     char messageToSend[50];
     char messageToReceive[50];
-    strcpy(messageToSend,"1 ");
+    strcpy(messageToSend,"LOGIN ");
     strcat(messageToSend,username);
     strcat(messageToSend," ");
     strcat(messageToSend,password);
@@ -120,13 +175,10 @@ void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToR
     while(listen(clientSocket,10))
     {
         int receiver = recv(clientSocket, messageToReceive, BUFFER_SIZE, 0);
-        if (receiver <= 0) {
-            perror("HELLO");
-            
-        }
-        else
-        {   printf("%s",messageToReceive);
-            break;
+        if(receiver>0)
+        {
+           
+           break;
         }
     }
 }
