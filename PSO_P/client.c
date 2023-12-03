@@ -8,9 +8,7 @@
 #define PORT 12347
 #define SERVER_IP "127.0.0.1"
 #define BUFFER_SIZE 1024
-
 int numarCaracterePrimite;
-char *user=NULL;
 int connectToServer();
 bool login(int clientSocket);
 void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToReceive);
@@ -27,10 +25,7 @@ int main() {
 void run()
 {
     int optiune;
-    int clientSocket;
-    do{
-    clientSocket=connectToServer();
-    printf("clientsocket==%d\n\n",clientSocket);
+    int clientSocket=connectToServer();
     printf("1.Login\n");
     printf("2.Autentificare\n");
     printf("3.Exit\n");
@@ -39,6 +34,7 @@ void run()
     if(optiune==1)
     {
         if (login(clientSocket)) {
+
             printf("Login reușit!\n");
             run_commander(clientSocket);
         } else {
@@ -53,7 +49,7 @@ void run()
     {
         exit(1);
     }
-    }while(1);
+
     cleanup(clientSocket);
 }
 char* getType(char*command)
@@ -84,7 +80,7 @@ bool commandWith4Words(char*type)
 }
 bool commandWith1Word(char*type)
 {
-    if(!commandWith4Words(type) && !commandWith3Words(type) && !commandWith2Words(type))
+    if(strcmp(type,"HELP")==0 || strcmp(type,"LOGOUT")==0 ||  strcmp(type,"LOGGER")==0 || strcmp(type,"FINISH")==0 || strcmp(type,"EXIT")==0)
         return true;
     return false;
 }
@@ -169,12 +165,8 @@ void run_commander(int clientSocket)
     bool firstTry=true;
     fgets(command,50,stdin);
     do
-    { 
-        //char new_prompt[50];
-        //snprintf(new_prompt, sizeof(new_prompt), "%s> ", "username");
-        //setenv("PS1", new_prompt, 1);  
-          printf("\033[1;31m%s>\033[0m ",user);
-          fflush(stdout);
+    {   
+          printf(">");
           fgets(command,50,stdin);
           command[strlen(command)-1]='\0';
           strcpy(command_copy,command);
@@ -199,10 +191,18 @@ void run_commander(int clientSocket)
             if(strncmp(messageToReceive,"EROARE GET",10)==0)
                 printf("EROARE - CHEIA NU EXISTA!\n");
             else
-            {
+            {   char*listIdentifier=strtok(messageToReceive,":");
+                if(strcmp(listIdentifier,"list")!=0)
+                {
                 for(int i=0;i<numarCaracterePrimite;i++)
                     printf("%c",messageToReceive[i]);
                 printf("\n");
+                }
+                else
+                {
+                    listIdentifier=strtok(NULL,":");
+                    printf("%s\n",listIdentifier);
+                }
             }
             }
             if(strcmp(protocol,"SET")==0)
@@ -223,18 +223,53 @@ void run_commander(int clientSocket)
                     printf("Lista creata cu succes!\n");
                 else printf("Cheia exista deja...");
             }
-            if(strcmp(protocol,"LOGOUT")==0)
+            if(strcmp(protocol,"RPUSH")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
-                   { 
-                    printf("Deconectare cu succes!\n");
-                    cleanup(clientSocket);
-                    free(user);
-                    break;
-                    
-                    }
-                else
-                    printf("NU s-a putut deconecta!");
+                    printf("Element adaugat cu succes!\n");
+                else printf("Eroare la adaugare element...\n");
+            }
+            if(strcmp(protocol,"LPUSH")==0)
+            {
+                if(strncmp(messageToReceive,"OK",2)==0)
+                    printf("Element adaugat cu succes!\n");
+                else printf("Eroare la adugare element!\n");
+            }
+            if(strcmp(protocol,"LRANGE")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"LPOP")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"RPOP")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"SETC")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"SADD")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"SREM")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"SISMEMBER")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"SCARD")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"SINTER")==0)
+            {
+                printf("%s\n",messageToReceive);
             }
 
 
@@ -311,11 +346,6 @@ bool login(int clientSocket) {
     strcat(messageToSend,password);
     
     sendMessageToServer(clientSocket, messageToSend, messageToReceive);
-    if(strncmp(messageToReceive,"DA",2) == 0)
-    {
-        user=(char*)malloc(sizeof(char)*strlen(username));
-        strcpy(user,username);
-    }
     return strncmp(messageToReceive,"DA",2) == 0;
 }
 
