@@ -487,12 +487,60 @@ char*execute_sinter(char*buffer)
         strcat(bufferToReturn,">");
         if(find)
         {
-            bufferToReturn[strlen(bufferToReturn-2)]='>';
-            bufferToReturn[strlen(bufferToReturn-1)]='\0';
+            bufferToReturn[strlen(bufferToReturn)-2]='>';
+            bufferToReturn[strlen(bufferToReturn)-1]='\0';
         }
         else return "SET VID";
         return bufferToReturn;
 
+}
+char*execute_sunion(char*buffer)
+{
+    char key1[50];
+    char key2[50];
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    strcpy(key1,word);
+    word=strtok(NULL," ");
+    strcpy(key2,word);
+    searchTree* node1=findElementByKey(BST,key1);
+    searchTree* node2=findElementByKey(BST,key2);
+    if(node1==NULL)
+        return "NU EXISTA O INTRARE PENTRU PRIMA CHEIE!";
+    if(!node1->isSet)
+        return "NU EXISTA O CORESPONDENTA INTRE VREUN SET SI PRIMA CHEIE!";
+    if(node2==NULL)
+        return "NU EXISTA O INTRARE PENTRU A DOUA CHEIE!";
+    if(!node2->isSet)
+        return "NU EXISTA O CORESPONDENTA INTRE VREUN SET SI A DOUA CHEIE!";
+    char**result=(char**)malloc(sizeof(char*)*100);
+    for(int i=0;i<100;i++)
+        result[i]=(char*)malloc(sizeof(char)*50);
+    int counter=0;
+    bool ok=1;
+    for(int i=0;i<node1->numberOfElements;i++)
+        strcpy(result[counter++],node1->values[i]);
+    for(int j=0;j<node2->numberOfElements;j++)
+    {   ok=1;
+        for(int k=0;k<node1->numberOfElements;k++)
+            if(strcmp(result[k],node2->values[j])==0)
+                {ok=0;
+                break;}
+        if(ok)
+            strcpy(result[counter++],node2->values[j]);
+
+    }
+    char*bufferToReturn=(char*)malloc(sizeof(char)*250);
+    strcpy(bufferToReturn,"<");
+    for(int i=0;i<counter;i++)
+    {
+        strcat(bufferToReturn,result[i]);
+        strcat(bufferToReturn,",");
+    }
+    strcat(bufferToReturn,">");
+    bufferToReturn[strlen(bufferToReturn)-2]='>';
+    bufferToReturn[strlen(bufferToReturn)-1]='\0';
+    return bufferToReturn;
 }
 char*execute_scard(char*buffer)
 {
@@ -680,13 +728,14 @@ char* execute_lpush(char*buffer)
     char*word=strtok(buffer," ");
     word=strtok(NULL," ");
     strcpy(key,word);
+    searchTree*node=findElementByKey(BST,key);
+    if(node==NULL)
+        return "NOTOK";
     word=strtok(NULL," ");
     strcpy(value,word);
     addValueToLeft(BST,key,value);
     updateFile(key,true);
-    if(BST==NULL)
-        return "NOTOK";
-    else return "OK";
+    return "OK";
 }
 char* execute_rpush(char*buffer)
 {
@@ -695,13 +744,14 @@ char* execute_rpush(char*buffer)
     char*word=strtok(buffer," ");
     word=strtok(NULL," ");
     strcpy(key,word);
+    searchTree*node=findElementByKey(BST,key);
+    if(node==NULL)
+        return "NOTOK";
     word=strtok(NULL," ");
     strcpy(value,word);
     addValueToRight(BST,key,value);
     updateFile(key,true);
-    if(BST==NULL)
-        return "NOTOK";
-    else return "OK";
+    return "OK";
 
 }
 char *execute_autentificare(char *buffer)
@@ -958,8 +1008,13 @@ char *execute_command(char *buffer)
         strcpy(messageToSend,execute_scard(buffer));
     if(strcmp(protocol,"SINTER")==0)
         strcpy(messageToSend,execute_sinter(buffer));
+    if(strcmp(protocol,"SUNION")==0)
+        strcpy(messageToSend,execute_sunion(buffer));
     if(strcmp(protocol,"LOGOUT")==0)
         strcpy(messageToSend,execute_logout());
+    if(strcmp(protocol,"FINISH")==0)
+        exit(1);
+
     return messageToSend;
 }
 char *execute_login(char *buffer)

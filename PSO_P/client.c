@@ -243,13 +243,13 @@ void run_commander(int clientSocket)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Element adaugat cu succes!\n");
-                else printf("Eroare la adaugare element...\n");
+                else printf("Eroare la adaugare element!Cheia nu exista...\n");
             }
             if(strcmp(protocol,"LPUSH")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Element adaugat cu succes!\n");
-                else printf("Eroare la adugare element!\n");
+                else printf("Eroare la adugare element!Cheia nu exista...\n");
             }
             if(strcmp(protocol,"LRANGE")==0)
             {
@@ -284,6 +284,10 @@ void run_commander(int clientSocket)
                 printf("%s\n",messageToReceive);
             }
             if(strcmp(protocol,"SINTER")==0)
+            {
+                printf("%s\n",messageToReceive);
+            }
+            if(strcmp(protocol,"SUNION")==0)
             {
                 printf("%s\n",messageToReceive);
             }
@@ -381,7 +385,7 @@ void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToR
     numarCaracterePrimite = recv(clientSocket, messageToReceive, BUFFER_SIZE, 0);
     caract=numarCaracterePrimite;
     if (numarCaracterePrimite <= 0) {
-        perror("Eroare la primirea mesajului de la Server!");
+        printf("Aplicatia se va inchide in cateva momente...");
         exit(1);
     }
     messageToReceive[numarCaracterePrimite]='\0';
