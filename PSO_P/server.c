@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <time.h>
 #define PORT 12347
 #define BUFFER_SIZE 1024
 typedef struct listNode
@@ -185,6 +186,9 @@ char *execute_command(char *buffer);
 char* execute_get(char* buffer);
 bool verify_credentials(char *username, char *password, bool forLogin);
 char *execute_autentificare(char *buffer);
+void add_logger(char* text);
+char *execute_logout();
+
 
 int main()
 {   populate_BST();
@@ -472,6 +476,8 @@ char *execute_command(char *buffer)
         strcpy(messageToSend,execute_del(buffer));
     if(strcmp(protocol,"LIST")==0)
         strcpy(messageToSend,execute_listCreation(buffer));
+    if(strcmp(protocol,"LOGOUT")==0)
+        strcpy(messageToSend,execute_logout());
     return messageToSend;
 }
 char *execute_login(char *buffer)
@@ -493,7 +499,9 @@ char *execute_login(char *buffer)
     username[strlen(username)] = '\0';
     password[strlen(password)] = '\0';
     if (verify_credentials(username, password, true))
-        strcpy(bufferToReturn, "DA");
+        {strcpy(bufferToReturn, "DA");
+        add_logger("Utilizatorul s-a autentificat cu succes!");
+        }
     else
         strcpy(bufferToReturn, "NU");
     bufferToReturn[strlen(bufferToReturn)] = '\0';
@@ -558,10 +566,21 @@ void run(int clientSocket)
     {
         memset(buffer, 0, BUFFER_SIZE);
         int messageReceived = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+        if(messageReceived==0)
+        {
+            printf("clientul s-a deconectat!");
+        }
         if (messageReceived > 0)
         {
             // Aici functie execute_command care returneaza un char* de trimis,In ea vor fi functii pentru fiecare comanda(login,autentif,set,get,...);
             char* message=(char*)malloc(sizeof(char)*100);
+            if (strcmp(buffer, "LOGOUT") == 0)
+            {
+                strcpy(message, execute_command(buffer));
+            message[strlen(message)]='\0';
+            sendMessageToClient(clientSocket, message);
+                break;
+            }
             strcpy(message, execute_command(buffer));
             message[strlen(message)]='\0';
             sendMessageToClient(clientSocket, message);
@@ -588,4 +607,27 @@ void sendMessageToClient(int clientSocket, char *messageToSend)
 void cleanup(int clientSocket)
 {
     close(clientSocket);
+}
+
+void add_logger(char* text)
+{
+    time_t timp_actual = time(NULL);
+    struct tm *info_timp = localtime(&timp_actual);
+    char timp_str[50];
+    strftime(timp_str, sizeof(timp_str), "%H:%M:%S %x", info_timp);
+    FILE *fisier=fopen("./serverUtils/logger.txt","a");
+    if(fisier==NULL)
+    {
+        perror("Erorare la deschidere fisier!");
+        exit(-1);
+    }
+    fprintf(fisier,"%s %s\n",text,timp_str);
+    fclose(fisier);
+}
+
+char* execute_logout()
+{
+    char* aux="OK";
+    add_logger("Utilizatorul s-a delogat!");
+    return aux;
 }
