@@ -16,7 +16,7 @@ void cleanup(int clientSocket);
 void autentificare(int clientSocket);
 void run_commander();
 void run();
-
+char*user=NULL;
 int main() {
    
     run();
@@ -25,7 +25,9 @@ int main() {
 void run()
 {
     int optiune;
-    int clientSocket=connectToServer();
+    int clientSocket;
+    do{
+    clientSocket=connectToServer();
     printf("1.Login\n");
     printf("2.Autentificare\n");
     printf("3.Exit\n");
@@ -49,7 +51,7 @@ void run()
     {
         exit(1);
     }
-
+    }while(1);
     cleanup(clientSocket);
 }
 char* getType(char*command)
@@ -166,7 +168,8 @@ void run_commander(int clientSocket)
     fgets(command,50,stdin);
     do
     {   
-          printf(">");
+          printf("\033[1;31m%s>\033[0m ",user);
+          fflush(stdout);
           fgets(command,50,stdin);
           command[strlen(command)-1]='\0';
           strcpy(command_copy,command);
@@ -222,6 +225,19 @@ void run_commander(int clientSocket)
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Lista creata cu succes!\n");
                 else printf("Cheia exista deja...");
+            }
+              if(strcmp(protocol,"LOGOUT")==0)
+            {
+                if(strncmp(messageToReceive,"OK",2)==0)
+                   { 
+                    printf("Deconectare cu succes!\n");
+                    cleanup(clientSocket);
+                    free(user);
+                    break;
+
+                    }
+                else
+                    printf("NU s-a putut deconecta!");
             }
             if(strcmp(protocol,"RPUSH")==0)
             {
@@ -345,7 +361,13 @@ bool login(int clientSocket) {
     strcat(messageToSend," ");
     strcat(messageToSend,password);
     
+    
     sendMessageToServer(clientSocket, messageToSend, messageToReceive);
+    if(strncmp(messageToReceive,"DA",2) == 0)
+    {
+        user=(char*)malloc(sizeof(char)*strlen(username));
+        strcpy(user,username);
+    }
     return strncmp(messageToReceive,"DA",2) == 0;
 }
 
