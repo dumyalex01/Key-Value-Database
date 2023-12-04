@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #define PORT 12347
 #define SERVER_IP "127.0.0.1"
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 1500
 int numarCaracterePrimite;
 int connectToServer();
 bool login(int clientSocket);
@@ -187,7 +187,7 @@ void run_commander(int clientSocket)
                 free(command_copy);
                 exit(1);
             }
-            messageToReceive=(char*)malloc(sizeof(char)*256);
+            messageToReceive=(char*)malloc(sizeof(char)*1500);
             sendMessageToServer(clientSocket,command,messageToReceive);
             if(strcmp(protocol,"GET")==0)
             {
@@ -243,13 +243,13 @@ void run_commander(int clientSocket)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Element adaugat cu succes!\n");
-                else printf("Eroare la adaugare element!Cheia nu exista...\n");
+                else printf("Eroare la adaugare element...\n");
             }
             if(strcmp(protocol,"LPUSH")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Element adaugat cu succes!\n");
-                else printf("Eroare la adugare element!Cheia nu exista...\n");
+                else printf("Eroare la adugare element!\n");
             }
             if(strcmp(protocol,"LRANGE")==0)
             {
@@ -287,12 +287,10 @@ void run_commander(int clientSocket)
             {
                 printf("%s\n",messageToReceive);
             }
-            if(strcmp(protocol,"SUNION")==0)
+            if(strcmp(protocol,"HELP")==0)
             {
                 printf("%s\n",messageToReceive);
             }
-
-
             free(messageToReceive);
         }
         
@@ -385,7 +383,7 @@ void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToR
     numarCaracterePrimite = recv(clientSocket, messageToReceive, BUFFER_SIZE, 0);
     caract=numarCaracterePrimite;
     if (numarCaracterePrimite <= 0) {
-        printf("Aplicatia se va inchide in cateva momente...");
+        perror("Eroare la primirea mesajului de la Server!");
         exit(1);
     }
     messageToReceive[numarCaracterePrimite]='\0';
