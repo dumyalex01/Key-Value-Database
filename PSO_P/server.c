@@ -6,10 +6,14 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <pthread.h>
 #include <time.h>
-
 #define PORT 12347
 #define BUFFER_SIZE 1024
+typedef struct client_info
+{
+    int clientSocket;
+}client_info;
 typedef struct listNode
 {
     char username[30];
@@ -30,6 +34,7 @@ typedef struct searchTree
 }searchTree;
 listNode *loginList = NULL;
 searchTree* BST=NULL;
+void updateFile(char*key,bool isList1);
 bool compare(char*key1,char*key2)
 {
 	if(strlen(key1)>strlen(key2))
@@ -39,7 +44,8 @@ bool compare(char*key1,char*key2)
 	else
 	{
 		for(int i=0;i<strlen(key1);i++)
-			{if(key1[i]>key2[i])
+			{
+                if(key1[i]>key2[i])
 				return true;
 			 else if(key1[i]<key2[i])
 			 		return false;
@@ -265,7 +271,7 @@ bool findUsername(listNode *A, char username[30])
 void populate_BST();
 void populate_loginList(listNode **list);
 int establish_connection();
-void run(int clientSocket);
+void runApp(int clientSocket);
 void sendMessageToClient(int clientSocket, char *messageToSend);
 void cleanup(int clientSocket);
 char *execute_login(char *buffer);
@@ -275,14 +281,10 @@ bool verify_credentials(char *username, char *password, bool forLogin);
 char *execute_autentificare(char *buffer);
 void add_logger(char*text);
 char*execute_logout();
-char* user=NULL;
-char *execute_help();
-
-
 int main()
 {   populate_BST();
     populate_loginList(&loginList);
-    run(establish_connection());
+    establish_connection();
     return 0;
 }
 void populateSimple()
@@ -311,9 +313,11 @@ void populateSimple()
          strcpy(values[0],word);
        BST=insertIntoTree(BST,key,values,false,false,1);
        printf("S-au introdus in tree: %s %s\n",key,values[0]);
+      
+
     }
     }
-    fclose(f);
+     fclose(f);
 }
 void populateListandSet(bool isList1)
 {   const char*message;
@@ -366,6 +370,7 @@ void populateListandSet(bool isList1)
         for(int i=0;i<counter;i++)
             printf("%s,",values[i]);
         printf("\n");
+
     }
     fclose(f);
 }
@@ -456,6 +461,32 @@ char*execute_setc(char*buffer)
         return "SET creat cu succes!";
     }
 }
+char*execute_lset(char*buffer)
+{
+    char key[50];
+    int index;
+    char value[50];
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    strcpy(key,word);
+    word=strtok(NULL," ");
+    index=atoi(word);
+    word=strtok(NULL," ");
+    strcpy(value,word); 
+    searchTree*node= findElementByKey(BST,key);
+    if(node==NULL)
+        return "CHEIA NU EXISTA";
+    if(!node->isList)
+        return "CHEIA DATA NU ESTE PENTRU O LISTA!";
+    for(int i=node->numberOfElements-1;i>index;i--)
+        strcpy(node->values[i],node->values[i-1]);
+        
+        strcpy(node->values[index],value);
+        node->numberOfElements++;
+    
+        updateFile(key,true);
+
+}
 char*execute_sinter(char*buffer)
 {
     char key1[50];
@@ -489,12 +520,60 @@ char*execute_sinter(char*buffer)
         strcat(bufferToReturn,">");
         if(find)
         {
-            bufferToReturn[strlen(bufferToReturn-2)]='>';
-            bufferToReturn[strlen(bufferToReturn-1)]='\0';
+            bufferToReturn[strlen(bufferToReturn)-2]='>';
+            bufferToReturn[strlen(bufferToReturn)-1]='\0';
         }
         else return "SET VID";
         return bufferToReturn;
 
+}
+char*execute_sunion(char*buffer)
+{
+    char key1[50];
+    char key2[50];
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    strcpy(key1,word);
+    word=strtok(NULL," ");
+    strcpy(key2,word);
+    searchTree* node1=findElementByKey(BST,key1);
+    searchTree* node2=findElementByKey(BST,key2);
+    if(node1==NULL)
+        return "NU EXISTA O INTRARE PENTRU PRIMA CHEIE!";
+    if(!node1->isSet)
+        return "NU EXISTA O CORESPONDENTA INTRE VREUN SET SI PRIMA CHEIE!";
+    if(node2==NULL)
+        return "NU EXISTA O INTRARE PENTRU A DOUA CHEIE!";
+    if(!node2->isSet)
+        return "NU EXISTA O CORESPONDENTA INTRE VREUN SET SI A DOUA CHEIE!";
+    char**result=(char**)malloc(sizeof(char*)*100);
+    for(int i=0;i<100;i++)
+        result[i]=(char*)malloc(sizeof(char)*50);
+    int counter=0;
+    bool ok=1;
+    for(int i=0;i<node1->numberOfElements;i++)
+        strcpy(result[counter++],node1->values[i]);
+    for(int j=0;j<node2->numberOfElements;j++)
+    {   ok=1;
+        for(int k=0;k<node1->numberOfElements;k++)
+            if(strcmp(result[k],node2->values[j])==0)
+                {ok=0;
+                break;}
+        if(ok)
+            strcpy(result[counter++],node2->values[j]);
+
+    }
+    char*bufferToReturn=(char*)malloc(sizeof(char)*250);
+    strcpy(bufferToReturn,"<");
+    for(int i=0;i<counter;i++)
+    {
+        strcat(bufferToReturn,result[i]);
+        strcat(bufferToReturn,",");
+    }
+    strcat(bufferToReturn,">");
+    bufferToReturn[strlen(bufferToReturn)-2]='>';
+    bufferToReturn[strlen(bufferToReturn)-1]='\0';
+    return bufferToReturn;
 }
 char*execute_scard(char*buffer)
 {
@@ -647,14 +726,8 @@ char*execute_lpop(char*buffer)
                 strcpy(node->values[i],node->values[i+1]);
             node->numberOfElements--;
             updateFile(key,true);
-            char buf[100];
-            buf[0]='\0';
-            strcat(buf,user);
-            strcat(buf," a folosit comanda LPOP pe lista: ");
-            strcat(buf,word);
-            strcat(buf, "!");
-            add_logger(buf);
             return bufferToReturn;
+
         }
     }
 }
@@ -677,16 +750,40 @@ char* execute_rpop(char*buffer)
             strcpy(bufferToReturn,node->values[node->numberOfElements-1]);
             node->numberOfElements--;
             updateFile(key,true);
-            char buf[100];
-            buf[0]='\0';
-            strcat(buf,user);
-            strcat(buf," a folosit comanda RPOP pe lista: ");
-            strcat(buf,word);
-            strcat(buf, "!");
-            add_logger(buf);
             return bufferToReturn;
         }
     }
+}
+char* execute_getrange(char*buffer)
+{
+    char key[50];
+    char*bufferToReturn=(char*)malloc(sizeof(char)*70);
+    int start;
+    int end;
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    strcpy(key,word);
+    word=strtok(NULL," ");
+    start=atoi(word);
+    word=strtok(NULL," ");
+    end=atoi(word);
+    if(start>end)
+        return "INDECSII NU SUNT VALIZI!!";
+    int counter=0;
+    searchTree* node=findElementByKey(BST,key);
+    if(end>strlen(node->values[0]))
+        return "INDEXUL DE FINAL ESTE MAI MARE DEECAT SIRRUL!";
+    if(node==NULL)
+        return "CHEIA NU EXISTA!";
+    if(node->isList || node->isSet)
+        return "CHEIA ESTE PENTRU SETURI SAU LISTE!";
+    for(int i=start;i<end;i++)
+        bufferToReturn[counter++]=node->values[0][i];
+        bufferToReturn[counter]='\0';
+    return bufferToReturn;
+
+
+
 }
 char* execute_lpush(char*buffer)
 {
@@ -695,13 +792,14 @@ char* execute_lpush(char*buffer)
     char*word=strtok(buffer," ");
     word=strtok(NULL," ");
     strcpy(key,word);
+    searchTree*node=findElementByKey(BST,key);
+    if(node==NULL)
+        return "NOTOK";
     word=strtok(NULL," ");
     strcpy(value,word);
     addValueToLeft(BST,key,value);
     updateFile(key,true);
-    if(BST==NULL)
-        return "NOTOK";
-    else return "OK";
+    return "OK";
 }
 char* execute_rpush(char*buffer)
 {
@@ -710,13 +808,14 @@ char* execute_rpush(char*buffer)
     char*word=strtok(buffer," ");
     word=strtok(NULL," ");
     strcpy(key,word);
+    searchTree*node=findElementByKey(BST,key);
+    if(node==NULL)
+        return "NOTOK";
     word=strtok(NULL," ");
     strcpy(value,word);
     addValueToRight(BST,key,value);
     updateFile(key,true);
-    if(BST==NULL)
-        return "NOTOK";
-    else return "OK";
+    return "OK";
 
 }
 char *execute_autentificare(char *buffer)
@@ -927,13 +1026,27 @@ bool verify_credentials(char *username, char *password, bool forLogin)
         return true;
     return false;
 }
+char* execute_strlen(char*buffer)
+{
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    searchTree*node=findElementByKey(BST,word);
+    if(node==NULL)
+        return "NU EXISTA O INTRARE PENTRU CHEIA DATA!";
+    if(node->isList || node->isSet)
+        return "CHEIA DATA ESTE PENTRU UN SET SAU O LISTA!"; 
+    char* bufferToReturn=malloc(sizeof(char)*10);
+    int n=strlen(node->values[0]);
+    snprintf(bufferToReturn,10,"%d",n);
+    return bufferToReturn;
+}
 
 char *execute_command(char *buffer)
 {   
     char *copie=(char*)malloc(sizeof(char)*70);
     strcpy(copie, buffer);
     char *protocol = strtok(copie, " ");
-    char *messageToSend = malloc(sizeof(char) * 1500);
+    char *messageToSend = malloc(sizeof(char) * 250);
     strcpy(messageToSend,"");
     if (strcmp(protocol,"LOGIN") == 0)
         strcpy(messageToSend, execute_login(buffer));
@@ -973,10 +1086,19 @@ char *execute_command(char *buffer)
         strcpy(messageToSend,execute_scard(buffer));
     if(strcmp(protocol,"SINTER")==0)
         strcpy(messageToSend,execute_sinter(buffer));
+    if(strcmp(protocol,"SUNION")==0)
+        strcpy(messageToSend,execute_sunion(buffer));
     if(strcmp(protocol,"LOGOUT")==0)
         strcpy(messageToSend,execute_logout());
-    if(strcmp(protocol,"HELP")==0)
-        strcpy(messageToSend,execute_help());
+    if(strcmp(protocol,"FINISH")==0)
+        exit(1);
+    if(strcmp(protocol,"STRLEN")==0)
+        strcpy(messageToSend,execute_strlen(buffer));
+    if(strcmp(protocol,"GETRANGE")==0)
+        strcpy(messageToSend,execute_getrange(buffer));
+    if(strcmp(protocol,"LSET")==0)
+        strcpy(messageToSend,execute_lset(buffer));
+
     return messageToSend;
 }
 char *execute_login(char *buffer)
@@ -998,22 +1120,55 @@ char *execute_login(char *buffer)
     username[strlen(username)] = '\0';
     password[strlen(password)] = '\0';
     if (verify_credentials(username, password, true))
-         {
-        strcpy(bufferToReturn, "DA");
-        user=(char*)malloc(sizeof(char)*strlen(username));
-        strcpy(user,username);
-        char buf[100];
-        buf[0]='\0';
-        strcat(buf,user);
-        strcat(buf," s-a autentificat cu succes!");
-        add_logger(buf);
+         {strcpy(bufferToReturn, "DA");
+        add_logger("Utilizatorul s-a autentificat cu succes!");
         }
     else
         strcpy(bufferToReturn, "NU");
     bufferToReturn[strlen(bufferToReturn)] = '\0';
     return bufferToReturn;
 }
+void runApp(int clientSocket)
+{
 
+    char buffer[BUFFER_SIZE];
+    while (1)
+    {
+        memset(buffer, 0, BUFFER_SIZE);
+        int messageReceived = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+        if (messageReceived > 0)
+        {
+            // Aici functie execute_command care returneaza un char* de trimis,In ea vor fi functii pentru fiecare comanda(login,autentif,set,get,...);
+            char* message=(char*)malloc(sizeof(char)*100);
+            if (strcmp(buffer, "LOGOUT") == 0)
+            {
+            strcpy(message, execute_command(buffer));
+            message[strlen(message)]='\0';
+            sendMessageToClient(clientSocket, message);
+                break;
+            }
+            strcpy(message, execute_command(buffer));
+            message[strlen(message)]='\0';
+            sendMessageToClient(clientSocket, message);
+            free(message);
+        }
+    }
+
+    cleanup(clientSocket);
+}
+void *run(void *arg) {
+    client_info *client = (client_info *)arg;
+    char buffer[BUFFER_SIZE];
+
+ 
+    runApp(client->clientSocket);
+
+    // Închideți socket-ul clientului și eliberați memoria
+    close(client->clientSocket);
+    free(client);
+
+    pthread_exit(NULL);
+}
 int establish_connection()
 {
     int serverSocket, clientSocket;
@@ -1048,52 +1203,21 @@ int establish_connection()
     printf("Serverul așteaptă conexiuni...\n");
 
     while (1)
-    {
-        clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &addrLen);
+    {   client_info*newClient=(client_info*)malloc(sizeof(client_info));
+        newClient->clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &addrLen);
         if (clientSocket == -1)
         {
             perror("Eroare la acceptarea conexiunii");
             exit(1);
         }
 
-        printf("Clientul s-a conectat.\n");
-        run(clientSocket);
-        close(clientSocket);
+        printf("Clientul %d s-a conectat.\n",newClient->clientSocket);
+        pthread_t client_thread;
+        pthread_create(&client_thread,NULL,run,(void*)newClient);
     }
 
     return 0;
 }
-void run(int clientSocket)
-{
-
-    printf("Clientul s-a conectat.\n");
-    char buffer[BUFFER_SIZE];
-    while (1)
-    {
-        memset(buffer, 0, BUFFER_SIZE);
-        int messageReceived = recv(clientSocket, buffer, BUFFER_SIZE, 0);
-        if (messageReceived > 0)
-        {
-            // Aici functie execute_command care returneaza un char* de trimis,In ea vor fi functii pentru fiecare comanda(login,autentif,set,get,...);
-            char* message=(char*)malloc(sizeof(char)*1500);
-            if (strcmp(buffer, "LOGOUT") == 0)
-            {
-            strcpy(message, execute_command(buffer));
-            message[strlen(message)]='\0';
-            sendMessageToClient(clientSocket, message);
-                break;
-            }
-            
-            strcpy(message, execute_command(buffer));
-            message[strlen(message)]='\0';
-            sendMessageToClient(clientSocket, message);
-            free(message);
-        }
-    }
-
-    cleanup(clientSocket);
-}
-
 void sendMessageToClient(int clientSocket, char *messageToSend)
 {
     int messageToSendLength = strlen(messageToSend);
@@ -1111,7 +1235,7 @@ void cleanup(int clientSocket)
 {
     close(clientSocket);
 }
-void add_logger(char* text)
+void add_logger(char* text)s
 {
     time_t timp_actual = time(NULL);
     struct tm *info_timp = localtime(&timp_actual);
@@ -1130,35 +1254,6 @@ void add_logger(char* text)
 char* execute_logout()
 {
     char* aux="OK";
-    char buf[100];
-    buf[0]='\0';
-    strcat(buf,user);
-    strcat(buf," s-a delogat cu succes!");
-    add_logger(buf);
-    user=NULL;
+    add_logger("Utilizatorul s-a delogat!");
     return aux;
-}
-
-char *execute_help()
-{
-    FILE* fisier=fopen("./serverUtils/help.txt","r");
-    if(fisier==NULL)
-    {
-        perror("Eroare la deschidere fisier HELP!");
-        exit(-1);
-    }
-    fseek(fisier, 0, SEEK_END);
-    int lungime = ftell(fisier);
-    fseek(fisier, 0, SEEK_SET);
-
-    char *continut = (char *)malloc(sizeof(char)*(lungime+1));
-    if (continut == NULL) {
-        perror("Eroare la alocare memorie!");
-        exit(-1);
-    }
-
-    fread(continut, sizeof(char), lungime, fisier);
-   
-    fclose(fisier);
-    return continut;
 }
