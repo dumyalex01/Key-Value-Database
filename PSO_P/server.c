@@ -10,9 +10,13 @@
 #include <time.h>
 #define PORT 12347
 #define BUFFER_SIZE 1024
+#define TYPE_SIMPLE 1
+#define TYPE_LIST 2
+#define TYPE_SET 3
 typedef struct client_info
 {
     int clientSocket;
+    
 }client_info;
 typedef struct listNode
 {
@@ -34,7 +38,7 @@ typedef struct searchTree
 }searchTree;
 listNode *loginList = NULL;
 searchTree* BST=NULL;
-void updateFile(char*key,bool isList1);
+void updateFile(char*key,int type);
 bool compare(char*key1,char*key2)
 {
 	if(strlen(key1)>strlen(key2))
@@ -117,14 +121,8 @@ searchTree* insertIntoTree(searchTree* node, char* key, char** values, bool hasL
         // Alocare memorie separată pentru values și copierea valorii           
         if(node->isList || node->isSet)
             {
-                node->values = (char**)malloc(sizeof(char*)*50);
-            for(int i=0;i<50;i++)
-                {node->values[i]=(char*)malloc(sizeof(char)*100);
-                    if(values[i]!=NULL)
-                    strcpy(node->values[i],values[i]);
-                }
+              node->values=values;
             
-
             }
 
         else 
@@ -464,27 +462,28 @@ char*execute_setc(char*buffer)
 char*execute_lset(char*buffer)
 {
     char key[50];
-    int index;
     char value[50];
+    int index;
     char*word=strtok(buffer," ");
     word=strtok(NULL," ");
     strcpy(key,word);
     word=strtok(NULL," ");
-    index=atoi(word);
+    strcpy(value,word);
     word=strtok(NULL," ");
-    strcpy(value,word); 
-    searchTree*node= findElementByKey(BST,key);
+    index=atoi(word);
+    searchTree*node=findElementByKey(BST,key);
     if(node==NULL)
-        return "CHEIA NU EXISTA";
+        return "CHEIA NU EXISTA!";
     if(!node->isList)
-        return "CHEIA DATA NU ESTE PENTRU O LISTA!";
-    for(int i=node->numberOfElements-1;i>index;i--)
+        return "CHEIA DATA NU CORESPUNDE UNUI SET!";
+    if(index>node->numberOfElements+1)
+        return "INDEXUL ESTE INVALID!";
+    node->numberOfElements++;
+    for(int i=node->numberOfElements;i>index;i--)
         strcpy(node->values[i],node->values[i-1]);
-        
-        strcpy(node->values[index],value);
-        node->numberOfElements++;
-    
-        updateFile(key,true);
+    strcpy(node->values[index],value);
+    updateFile(key,TYPE_LIST);
+    return "S-a realizat cu succes introducerea!";
 
 }
 char*execute_sinter(char*buffer)
@@ -575,6 +574,26 @@ char*execute_sunion(char*buffer)
     bufferToReturn[strlen(bufferToReturn)-1]='\0';
     return bufferToReturn;
 }
+
+char* execute_getset(char*buffer)
+{
+    char key[50];
+    char value[50];
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    strcpy(key,word);
+    word=strtok(NULL," ");
+    strcpy(value,word);
+    searchTree*node=findElementByKey(BST,key);
+    if(node==NULL)
+        return "CHEIA NU EXISTA!";
+    if(node->isSet || node->isList)
+        return "NU ESTE O CHEIE SIMPLA!";
+    strcpy(node->values[0],value);
+    updateFile(key,TYPE_SIMPLE);
+    return "VALOARE SCHIMBATA CU SUCCES!";
+
+}
 char*execute_scard(char*buffer)
 {
     char key[50];
@@ -660,37 +679,76 @@ char* execute_get(char*buffer)
         return bufferToReturn;
     }
 }
-void updateFile(char*key,bool isList1)
+void depthSearchUpdate(searchTree*node)
+{
+    if(node==NULL)
+        return;
+    
+    FILE*f;
+    const char*filename;
+    if(node->isList)
+        filename="./serverUtils/list.txt";
+    else if(node->isSet)
+            filename="./serverUtils/set.txt";
+    else filename="./serverUtils/simple.txt";
+
+    f=fopen(filename,"a");
+    if(!node->isList && !node->isSet)
+        fprintf(f,"\n%s-%s",node->key,node->values[0]);
+    else
+    {
+        fprintf(f,"\n%s-",node->key);
+        for(int i=0;i<node->numberOfElements;i++)
+            fprintf(f,"%s,",node->values[i]);
+    }
+    fclose(f); 
+
+    depthSearchUpdate(node->leftNode);
+    depthSearchUpdate(node->rightNode);
+}
+void updateFile(char*key,int type)
 {
     const char*filename;
-    if(isList1)
+    if(type==TYPE_LIST)
         filename="./serverUtils/list.txt";
-    else filename="./serverUtils/set.txt";
+    else if(type==TYPE_SET) 
+        filename="./serverUtils/set.txt";
+    else if(type==TYPE_SIMPLE)
+        filename="./serverUtils/simple.txt";
     char**vectorLinii=(char**)malloc(sizeof(char*)*100);    
     int counter=0;
     for(int i=0;i<100;i++)
         vectorLinii[i]=(char*)malloc(sizeof(char)*200);
     FILE*f=fopen(filename,"r");
     char buffer[250];
+    char content[250];
     char copie[250];
+
     while(!feof(f))
     {
         fscanf(f,"%s",buffer);
         strcpy(copie,buffer);
         char*key_f=strtok(copie,"-");
         if(strcmp(key_f,key)==0)
-        {
+        {   char content[250];
             searchTree*node=findElementByKey(BST,key);
-            strcpy(buffer,key);
-            strcat(buffer,"-");
+            strcpy(content,key);
+            strcat(content,"-");
             for(int i=0;i<node->numberOfElements;i++)
             {
-                strcat(buffer,node->values[i]);
-                strcat(buffer,",");
+                strcat(content,node->values[i]);
+                if(type!=TYPE_SIMPLE)
+                    strcat(content,",");
+
             }
+            strcpy(vectorLinii[counter],content);
+            counter++;
         }
+        else
+        {
         strcpy(vectorLinii[counter],buffer);
         counter++;
+        }
     }
     fclose(f);
     FILE*of=fopen(filename,"w");
@@ -703,6 +761,56 @@ void updateFile(char*key,bool isList1)
     }
     fclose(of);
     
+
+}
+bool firstLine=0;
+void updateSimple(searchTree*node,FILE*f)
+{
+    if(node==NULL || node->isList || node->isSet)
+        return;
+    if(!firstLine)
+    {
+        fprintf(f,"%s-%s",node->key,node->values[0]);
+        firstLine=true;
+    }
+    else 
+    {
+    fprintf(f,"\n%s-%s",node->key,node->values[0]);
+    }
+    fflush(f);
+
+    updateSimple(node->leftNode,f);
+    updateSimple(node->rightNode,f);
+    
+}
+char* execute_changev(char*buffer)
+{
+    char oldkey[50];
+    char newkey[50];
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    strcpy(oldkey,word);
+    word=strtok(NULL," ");
+    strcpy(newkey,word);
+    searchTree*node=findElementByKey(BST,oldkey);
+    if(node==NULL)
+        return "CHEIA DATA NU EXISTA!";
+    char**values=node->values;
+    bool isList=node->isList;
+    bool isSet=node->isSet;
+    int numberOfElements=node->numberOfElements;
+    insertIntoTree(BST,newkey,values,isList,isSet,numberOfElements);
+    deleteNode(BST,oldkey);
+    FILE*f=fopen("./serverUtils/simple.txt","w");
+    updateSimple(BST,f);
+    fclose(f);
+
+
+    //TODO functie de update aici pentru a inlocui cheia in fisier
+
+    return "OK";
+
+
 
 }
 char*execute_lpop(char*buffer)
@@ -725,11 +833,35 @@ char*execute_lpop(char*buffer)
             for(int i=0;i<node->numberOfElements-1;i++)
                 strcpy(node->values[i],node->values[i+1]);
             node->numberOfElements--;
-            updateFile(key,true);
+            updateFile(key,TYPE_LIST);
             return bufferToReturn;
 
         }
     }
+}
+void keys(searchTree*node,char**buffer);
+char*execute_keys()
+{
+    char*buffer=(char*)malloc(sizeof(char)*500);
+    keys(BST,&buffer);
+    return buffer;
+}
+void keys(searchTree*node,char**buffer)
+{
+    if(node==NULL)
+        return;
+    
+    strcat(*buffer,node->key);
+    if(node->isList)
+        strcat(*buffer,"-lista");
+    else if(node->isSet)
+            strcat(*buffer,"-set");
+    else strcat(*buffer,"-simplu");
+    strcat(*buffer,"\n");
+
+    keys(node->leftNode,buffer);
+    keys(node->rightNode,buffer);
+    
 }
 char* execute_rpop(char*buffer)
 {
@@ -749,7 +881,7 @@ char* execute_rpop(char*buffer)
             char*bufferToReturn=(char*)malloc(sizeof(char)*100);
             strcpy(bufferToReturn,node->values[node->numberOfElements-1]);
             node->numberOfElements--;
-            updateFile(key,true);
+            updateFile(key,TYPE_LIST);
             return bufferToReturn;
         }
     }
@@ -798,7 +930,7 @@ char* execute_lpush(char*buffer)
     word=strtok(NULL," ");
     strcpy(value,word);
     addValueToLeft(BST,key,value);
-    updateFile(key,true);
+    updateFile(key,TYPE_LIST);
     return "OK";
 }
 char* execute_rpush(char*buffer)
@@ -814,7 +946,7 @@ char* execute_rpush(char*buffer)
     word=strtok(NULL," ");
     strcpy(value,word);
     addValueToRight(BST,key,value);
-    updateFile(key,true);
+    updateFile(key,TYPE_LIST);
     return "OK";
 
 }
@@ -928,7 +1060,7 @@ char* execute_sadd(char*buffer)
     strcpy(value,word);
     if(!findValue(key,word))
     {searchTree*nod= addValueToSet(BST,key,value);
-    updateFile(key,false);
+    updateFile(key,TYPE_SET);
     if(nod==NULL)
         return "Nu exista un set cu aceasta cheie...";
     else 
@@ -961,7 +1093,7 @@ char* execute_srem(char*buffer)
         for(int i=poz;i<nod->numberOfElements-1;i++)
             strcpy(nod->values[i],nod->values[i+1]);
         nod->numberOfElements--;
-        updateFile(key,false);
+        updateFile(key,TYPE_SET);
         return "ELEMENTUL A FOST STERS!";
     }
 }
@@ -1041,6 +1173,30 @@ char* execute_strlen(char*buffer)
     return bufferToReturn;
 }
 
+char* execute_lrem(char*buffer)
+{
+    char key[50];
+    int index;
+    char value[50];
+    char*word=strtok(buffer," ");
+    word=strtok(NULL," ");
+    strcpy(key,word);
+    word=strtok(NULL," ");
+    index=atoi(word);
+    searchTree*node=findElementByKey(BST,key);
+    if(node==NULL)
+        return "NU EXISTA O INTRARE PENTRU ACEASTA CHEIE!";
+    if(!node->isList)
+        return "CHEIA DATA NU ESTE PENTRU O LISTA!";
+    if(index>node->numberOfElements || index<0)
+        return "INDEXUL ESTE PREA MARE SAU NEGATIV!";
+    node->numberOfElements--;
+    for(int i=index;i<node->numberOfElements;i++)
+        strcpy(node->values[i],node->values[i+1]);
+    updateFile(key,TYPE_LIST);
+    return "VALOARE ELIMINATA CU SUCCES!";
+}
+
 char *execute_command(char *buffer)
 {   
     char *copie=(char*)malloc(sizeof(char)*70);
@@ -1098,9 +1254,17 @@ char *execute_command(char *buffer)
         strcpy(messageToSend,execute_getrange(buffer));
     if(strcmp(protocol,"LSET")==0)
         strcpy(messageToSend,execute_lset(buffer));
-
+    if(strcmp(protocol,"LREM")==0)
+        strcpy(messageToSend,execute_lrem(buffer));
+    if(strcmp(protocol,"GETSET")==0)
+        strcpy(messageToSend,execute_getset(buffer));
+    if(strcmp(protocol,"KEYS")==0)
+        strcpy(messageToSend,execute_keys());
+    if(strcmp(protocol,"CHANGEV")==0)
+        strcpy(messageToSend,execute_changev(buffer));
     return messageToSend;
 }
+
 char *execute_login(char *buffer)
 {
     char *word = strtok(buffer, " ");
@@ -1157,7 +1321,7 @@ void runApp(int clientSocket)
     cleanup(clientSocket);
 }
 void *run(void *arg) {
-    client_info *client = (client_info *)arg;
+        client_info *client = (client_info *)arg;
     char buffer[BUFFER_SIZE];
 
  
@@ -1235,7 +1399,7 @@ void cleanup(int clientSocket)
 {
     close(clientSocket);
 }
-void add_logger(char* text)s
+void add_logger(char* text)
 {
     time_t timp_actual = time(NULL);
     struct tm *info_timp = localtime(&timp_actual);
