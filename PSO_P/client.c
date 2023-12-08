@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #define PORT 12347
 #define SERVER_IP "127.0.0.1"
-#define BUFFER_SIZE 1500
+#define BUFFER_SIZE 1024
 int numarCaracterePrimite;
 int connectToServer();
 bool login(int clientSocket);
@@ -39,8 +39,6 @@ void run()
 
             printf("Login reușit!\n");
             run_commander(clientSocket);
-        } else {
-            printf("Login nereușit. Programul se închide.\n");
         }
     }
     else if(optiune==2)
@@ -63,26 +61,28 @@ char* getType(char*command)
 bool commandWith3Words(char*type)
 {
     if(strcmp(type,"SET")==0 || strcmp(type,"RPUSH")==0 || strcmp(type,"LPUSH")==0 || strcmp(type,"SADD")==0
-    || strcmp(type,"SREM")==0 || strcmp(type,"SISMEMBER")==0 || strcmp(type,"SUNION")==0 || strcmp(type,"SINTER")==0)
+    || strcmp(type,"SREM")==0 || strcmp(type,"SISMEMBER")==0 || strcmp(type,"SUNION")==0 || strcmp(type,"SINTER")==0 || strcmp(type,"CHANGEV")==0
+    || strcmp(type,"GETSET")==0 ||  strcmp(type,"LREM")==0)
         return true;
     return false;
 }
 bool commandWith2Words(char*type)
 {
     if(strcmp(type,"GET")==0 || strcmp(type,"DEL")==0 || strcmp(type,"LPOP")==0 || strcmp(type,"RPOP")==0 ||
-    strcmp(type,"SMEMBERS")==0 || strcmp(type,"SCARD") ==0 || strcmp(type,"LIST")==0 || strcmp(type,"SETC")==0)
+    strcmp(type,"SMEMBERS")==0 || strcmp(type,"SCARD") ==0 || strcmp(type,"LIST")==0 || strcmp(type,"SETC")==0 || strcmp(type,"STRLEN")==0)
         return true;
     return false;
 }
 bool commandWith4Words(char*type)
 {
-    if(strcmp(type,"LRANGE")==0)
+    if(strcmp(type,"LRANGE")==0 || strcmp(type,"GETRANGE")==0 || strcmp(type,"LSET")==0)
         return true;
     return false;
 }
 bool commandWith1Word(char*type)
 {
-    if(strcmp(type,"HELP")==0 || strcmp(type,"LOGOUT")==0 ||  strcmp(type,"LOGGER")==0 || strcmp(type,"FINISH")==0 || strcmp(type,"EXIT")==0)
+    if(strcmp(type,"HELP")==0 || strcmp(type,"LOGOUT")==0 ||  strcmp(type,"LOGGER")==0 || strcmp(type,"FINISH")==0 || strcmp(type,"EXIT")==0 ||
+    strcmp(type,"KEYS")==0)
         return true;
     return false;
 }
@@ -187,7 +187,7 @@ void run_commander(int clientSocket)
                 free(command_copy);
                 exit(1);
             }
-            messageToReceive=(char*)malloc(sizeof(char)*1500);
+            messageToReceive=(char*)malloc(sizeof(char)*256);
             sendMessageToServer(clientSocket,command,messageToReceive);
             if(strcmp(protocol,"GET")==0)
             {
@@ -208,24 +208,28 @@ void run_commander(int clientSocket)
                 }
             }
             }
+            else
             if(strcmp(protocol,"SET")==0)
             {
                 if(strncmp(messageToReceive,"DEJA_EXISTA",11)==0)
                     printf("Eroare - Cheia deja exista!\n");
                 else printf("Pereche adaugata!\n");
             }
+            else
             if(strcmp(protocol,"DEL")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Stergere cu succes\n");
                 else printf("Cheie inexistenta...\n");
             }
+            else
             if(strcmp(protocol,"LIST")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Lista creata cu succes!\n");
                 else printf("Cheia exista deja...");
             }
+            else
               if(strcmp(protocol,"LOGOUT")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
@@ -239,58 +243,23 @@ void run_commander(int clientSocket)
                 else
                     printf("NU s-a putut deconecta!");
             }
+            else
             if(strcmp(protocol,"RPUSH")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Element adaugat cu succes!\n");
-                else printf("Eroare la adaugare element...\n");
+                else printf("Eroare la adaugare element!Cheia nu exista...\n");
             }
+            else
             if(strcmp(protocol,"LPUSH")==0)
             {
                 if(strncmp(messageToReceive,"OK",2)==0)
                     printf("Element adaugat cu succes!\n");
-                else printf("Eroare la adugare element!\n");
+                else printf("Eroare la adugare element!Cheia nu exista...\n");
             }
-            if(strcmp(protocol,"LRANGE")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"LPOP")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"RPOP")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"SETC")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"SADD")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"SREM")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"SISMEMBER")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"SCARD")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"SINTER")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
-            if(strcmp(protocol,"HELP")==0)
-            {
-                printf("%s\n",messageToReceive);
-            }
+            else printf("%s\n",messageToReceive);
+
+
             free(messageToReceive);
         }
         
@@ -369,8 +338,19 @@ bool login(int clientSocket) {
     {
         user=(char*)malloc(sizeof(char)*strlen(username));
         strcpy(user,username);
+        return true;
     }
-    return strncmp(messageToReceive,"DA",2) == 0;
+    if(strncmp(messageToReceive,"ONLINE",6)==0)
+    {
+        printf("Eroare! USER DEJA CONECTAT!\n");
+        return false;
+    }
+    if(strncmp(messageToReceive,"NO",2)==0)
+    {
+        printf("Eroare! Credentiale invalide!");
+        return false;
+    }
+    
 }
 
 void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToReceive) {
@@ -383,7 +363,7 @@ void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToR
     numarCaracterePrimite = recv(clientSocket, messageToReceive, BUFFER_SIZE, 0);
     caract=numarCaracterePrimite;
     if (numarCaracterePrimite <= 0) {
-        perror("Eroare la primirea mesajului de la Server!");
+        printf("Aplicatia se va inchide in cateva momente...");
         exit(1);
     }
     messageToReceive[numarCaracterePrimite]='\0';

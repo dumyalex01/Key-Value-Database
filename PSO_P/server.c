@@ -18,12 +18,14 @@ typedef struct client_info
     int clientSocket;
     
 }client_info;
+char user[50];
 typedef struct listNode
 {
     char username[30];
     char password[30];
     struct listNode *next;
 } listNode;
+
 typedef struct searchTree
 {
 	char* key;
@@ -36,8 +38,17 @@ typedef struct searchTree
 
 
 }searchTree;
+
 listNode *loginList = NULL;
 searchTree* BST=NULL;
+bool verify_emptyFile(FILE*f)
+{
+    fseek(f,0,SEEK_END);
+    int length=ftell(f);
+    if(length>0)
+        return false;
+    return true;
+}
 void updateFile(char*key,int type);
 bool compare(char*key1,char*key2)
 {
@@ -279,11 +290,18 @@ bool verify_credentials(char *username, char *password, bool forLogin);
 char *execute_autentificare(char *buffer);
 void add_logger(char*text);
 char*execute_logout();
+void clearFile();
 int main()
 {   populate_BST();
     populate_loginList(&loginList);
     establish_connection();
+    clearFile();
     return 0;
+}
+void clearFile()
+{
+    FILE*f=fopen("./serverUtils/online","w");
+    fclose(f);
 }
 void populateSimple()
 {
@@ -454,7 +472,10 @@ char*execute_setc(char*buffer)
             values[i]=(char*)malloc(sizeof(char)*100);
         BST=insertIntoTree(BST,key,values,false,true,0);
         FILE*f=fopen("./serverUtils/set.txt","a");
-        fprintf(f,"\n%s-",key);
+        if(verify_emptyFile(f))
+            fprintf(f,"%s",key);
+        else
+            fprintf(f,"\n%s-",key);
         fclose(f);
         return "SET creat cu succes!";
     }
@@ -775,6 +796,9 @@ void updateSimple(searchTree*node,FILE*f)
     }
     else 
     {
+    if(verify_emptyFile(f))
+        fprintf(f,"%s-%s",node->key,node->values[0]);
+    else
     fprintf(f,"\n%s-%s",node->key,node->values[0]);
     }
     fflush(f);
@@ -812,6 +836,23 @@ char* execute_changev(char*buffer)
 
 
 
+}
+void handle_sigint(int signum) {
+    printf("CTRL+C detected. Cleaning file...\n");
+
+    FILE *file = fopen("./serverUtils/online", "w");
+    if (file == NULL) {
+        perror("Eroare la deschiderea fișierului");
+        exit(EXIT_FAILURE);
+    }
+
+    if (truncate("./serverUtils/online", 0) == -1) {
+        perror("Eroare la trunchierea fișierului");
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(file);
+    exit(1);
 }
 char*execute_lpop(char*buffer)
 {   
@@ -1009,6 +1050,9 @@ char* execute_listCreation(char*buffer)
     else
     {
         FILE*f=fopen("./serverUtils/list.txt","a");
+        if(verify_emptyFile(f))
+            fprintf(f,"%s-",key);
+        else
         fprintf(f,"\n%s-",key);
         BST=insertIntoTree(BST,key,values,true,false,0);
         fclose(f);
@@ -1138,7 +1182,10 @@ char* execute_set(char*buffer)
     {
         BST=insertIntoTree(BST,key,value,false,false,1);
         FILE*f=fopen("./serverUtils/simple.txt","a");
-        fprintf(f,"\n%s-%s",key,value[0]);
+        if(verify_emptyFile(f))
+            fprintf(f,"%s-%s",key,value[0]);
+        else
+            fprintf(f,"\n%s-%s",key,value[0]);
         fflush(f);
         fclose(f);
         return "OK";
@@ -1270,7 +1317,7 @@ char *execute_login(char *buffer)
     char *word = strtok(buffer, " ");
     char *username = (char *)malloc(sizeof(char) * 30);
     char *password = (char *)malloc(sizeof(char) * 30);
-    char *bufferToReturn = (char *)malloc(sizeof(char) * 3);
+    char *bufferToReturn = (char *)malloc(sizeof(char) * 10);
     int counter = 0;
     while (word != NULL)
     {
@@ -1284,8 +1331,32 @@ char *execute_login(char *buffer)
     username[strlen(username)] = '\0';
     password[strlen(password)] = '\0';
     if (verify_credentials(username, password, true))
-         {strcpy(bufferToReturn, "DA");
-        add_logger("Utilizatorul s-a autentificat cu succes!");
+         {
+        strcpy(bufferToReturn, "DA");
+        FILE*f=fopen("./serverUtils/online","r");
+        char username_F[100];
+        while(!feof(f))
+        {
+            fscanf(f,"%s",username_F);
+            if(strcmp(username_F,username)==0)
+            {
+                strcpy(bufferToReturn,"ONLINE");
+                break;
+            } 
+            
+
+        }
+        fclose(f);
+        if(strcmp(bufferToReturn,"ONLINE")!=0)
+            {
+            add_logger("Utilizatorul s-a autentificat cu succes!");
+            FILE*of=fopen("./serverUtils/online","a");
+            fprintf(of,"%s\n",username);
+            strcpy(user,username);
+            fclose(of);
+            }
+        
+        
         }
     else
         strcpy(bufferToReturn, "NU");
@@ -1294,7 +1365,7 @@ char *execute_login(char *buffer)
 }
 void runApp(int clientSocket)
 {
-
+    signal(SIGINT,handle_sigint);
     char buffer[BUFFER_SIZE];
     while (1)
     {
@@ -1335,6 +1406,7 @@ void *run(void *arg) {
 }
 int establish_connection()
 {
+    signal(SIGINT,handle_sigint);
     int serverSocket, clientSocket;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t addrLen = sizeof(clientAddr);
@@ -1374,8 +1446,6 @@ int establish_connection()
             perror("Eroare la acceptarea conexiunii");
             exit(1);
         }
-
-        printf("Clientul %d s-a conectat.\n",newClient->clientSocket);
         pthread_t client_thread;
         pthread_create(&client_thread,NULL,run,(void*)newClient);
     }
@@ -1419,5 +1489,20 @@ char* execute_logout()
 {
     char* aux="OK";
     add_logger("Utilizatorul s-a delogat!");
+    FILE*f=fopen("./serverUtils/online","r");
+    char buff[50];
+    char users[10][50];
+    int counter=0;
+    while(!feof(f))
+    {
+        fscanf(f,"%s",buff);
+        if(strcmp(buff,user)!=0)
+            strcpy(users[counter++],buff);
+    }
+    fclose(f);
+    FILE*of=fopen("./serverUtils/online","w");
+    for(int i=0;i<counter;i++)
+        fprintf(of,"%s\n",users[i]);
+    fclose(of);
     return aux;
 }
