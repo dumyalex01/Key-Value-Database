@@ -40,9 +40,7 @@ void run()
                 printf("Login reușit!\n");
                 run_commander(clientSocket);
             }
-            else {
-                printf("Login nereușit. Programul se închide.\n");
-            }
+        
         }
         else if (optiune == 2)
         {
@@ -334,7 +332,7 @@ int connectToServer() {
 }
 
 bool login(int clientSocket) {
-
+   
     char username[20];
     char password[20];
     printf("Username:");
@@ -343,19 +341,30 @@ bool login(int clientSocket) {
     scanf("%s", password);
     char messageToSend[50];
     char messageToReceive[50];
-    strcpy(messageToSend, "LOGIN ");
-    strcat(messageToSend, username);
-    strcat(messageToSend, " ");
-    strcat(messageToSend, password);
-
-
+    strcpy(messageToSend,"LOGIN ");
+    strcat(messageToSend,username);
+    strcat(messageToSend," ");
+    strcat(messageToSend,password);
+    
+    
     sendMessageToServer(clientSocket, messageToSend, messageToReceive);
-    if (strncmp(messageToReceive, "DA", 2) == 0)
+    if(strncmp(messageToReceive,"DA",2) == 0)
     {
-        user = (char*)malloc(sizeof(char) * strlen(username));
-        strcpy(user, username);
+        user=(char*)malloc(sizeof(char)*strlen(username));
+        strcpy(user,username);
+        return true;
     }
-    return strncmp(messageToReceive, "DA", 2) == 0;
+    if(strncmp(messageToReceive,"ONLINE",6)==0)
+    {
+        printf("Eroare! USER DEJA CONECTAT!\n");
+        return false;
+    }
+    if(strncmp(messageToReceive,"NU",2)==0)
+    {
+        printf("Eroare! Credentiale invalide!");
+        return false;
+    }
+    
 }
 
 void sendMessageToServer(int clientSocket, char* messageToSend, char* messageToReceive) {

@@ -13,6 +13,7 @@
 #define TYPE_SIMPLE 1
 #define TYPE_LIST 2
 #define TYPE_SET 3
+char user[50];
 typedef struct client_info
 {
     int clientSocket;
@@ -376,6 +377,23 @@ char* execute_logout();
 char* execute_zadd(char* buffer);
 char* execute_zcard(char* buffer);
 char* execute_zscore(char* buffer);
+void handle_sigint(int signum) {
+    printf("CTRL+C detected. Cleaning file...\n");
+
+    FILE *file = fopen("./serverUtils/online", "w");
+    if (file == NULL) {
+        perror("Eroare la deschiderea fișierului");
+        exit(EXIT_FAILURE);
+    }
+
+    if (truncate("./serverUtils/online", 0) == -1) {
+        perror("Eroare la trunchierea fișierului");
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(file);
+    exit(1);
+}
 
 int main()
 {
@@ -1476,12 +1494,12 @@ char* execute_command(char* buffer)
     return messageToSend;
 }
 
-char* execute_login(char* buffer)
+char *execute_login(char *buffer)
 {
-    char* word = strtok(buffer, " ");
-    char* username = (char*)malloc(sizeof(char) * 30);
-    char* password = (char*)malloc(sizeof(char) * 30);
-    char* bufferToReturn = (char*)malloc(sizeof(char) * 3);
+    char *word = strtok(buffer, " ");
+    char *username = (char *)malloc(sizeof(char) * 30);
+    char *password = (char *)malloc(sizeof(char) * 30);
+    char *bufferToReturn = (char *)malloc(sizeof(char) * 10);
     int counter = 0;
     while (word != NULL)
     {
@@ -1495,10 +1513,33 @@ char* execute_login(char* buffer)
     username[strlen(username)] = '\0';
     password[strlen(password)] = '\0';
     if (verify_credentials(username, password, true))
-    {
+         {
         strcpy(bufferToReturn, "DA");
-        add_logger("Utilizatorul s-a autentificat cu succes!");
-    }
+        FILE*f=fopen("./serverUtils/online","r");
+        char username_F[100];
+        while(!feof(f))
+        {
+            fscanf(f,"%s",username_F);
+            if(strcmp(username_F,username)==0)
+            {
+                strcpy(bufferToReturn,"ONLINE");
+                break;
+            } 
+            
+
+        }
+        fclose(f);
+        if(strcmp(bufferToReturn,"ONLINE")!=0)
+            {
+            add_logger("Utilizatorul s-a autentificat cu succes!");
+            FILE*of=fopen("./serverUtils/online","a");
+            fprintf(of,"%s\n",username);
+            strcpy(user,username);
+            fclose(of);
+            }
+        
+        
+        }
     else
         strcpy(bufferToReturn, "NU");
     bufferToReturn[strlen(bufferToReturn)] = '\0';
@@ -1506,7 +1547,7 @@ char* execute_login(char* buffer)
 }
 void runApp(int clientSocket)
 {
-
+    signal(SIGINT,handle_sigint);
     char buffer[BUFFER_SIZE];
     while (1)
     {
@@ -1539,14 +1580,14 @@ void* run(void* arg) {
 
     runApp(client->clientSocket);
 
-    // Închideți socket-ul clientului și eliberați memoria
+
     close(client->clientSocket);
     free(client);
 
     pthread_exit(NULL);
 }
 int establish_connection()
-{
+{    signal(SIGINT,handle_sigint);
     int serverSocket, clientSocket;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t addrLen = sizeof(clientAddr);
@@ -1588,7 +1629,6 @@ int establish_connection()
             exit(1);
         }
 
-        printf("Clientul %d s-a conectat.\n", newClient->clientSocket);
         pthread_t client_thread;
         pthread_create(&client_thread, NULL, run, (void*)newClient);
     }
@@ -1630,8 +1670,24 @@ void add_logger(char* text)
 
 char* execute_logout()
 {
-    char* aux = "OK";
+    char* aux="OK";
+    printf("Clientul s-a deconectat!");
     add_logger("Utilizatorul s-a delogat!");
+    FILE*f=fopen("./serverUtils/online","r");
+    char buff[50];
+    char users[10][50];
+    int counter=0;
+    while(!feof(f))
+    {
+        fscanf(f,"%s",buff);
+        if(strcmp(buff,user)!=0)
+            strcpy(users[counter++],buff);
+    }
+    fclose(f);
+    FILE*of=fopen("./serverUtils/online","w");
+    for(int i=0;i<counter;i++)
+        fprintf(of,"%s\n",users[i]);
+    fclose(of);
     return aux;
 }
 
