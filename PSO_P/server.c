@@ -39,6 +39,14 @@ typedef struct searchTree
 
 
 }searchTree;
+bool empty_file(FILE*f)
+{
+    fseek(f,0,SEEK_END);
+    int length=ftell(f);
+    if(length>0)
+        return false;
+    return true;
+}
 listNode* loginList = NULL;
 searchTree* BST = NULL;
 void updateFile(char* key, int type);
@@ -191,7 +199,11 @@ searchTree* insertIntoTree(searchTree* node, char* key, char** values, bool hasL
             // Alocare memorie separată pentru values și copierea valorii           
             if (node->isList || node->isSet)
             {
-                node->values = values;
+                node->values = (char**)malloc(sizeof(char*)*100);
+                for(int i=0;i<100;i++)
+                    node->values[i]=(char*)malloc(sizeof(char)*50);
+                for(int i=0;i<numberOfElements;i++)
+                    strcpy(node->values[i],values[i]);
             }
 
             else
@@ -667,7 +679,10 @@ char* execute_setc(char* buffer)
             values[i] = (char*)malloc(sizeof(char) * 100);
         BST = insertIntoTree(BST, key, values, false, true, 0, false, NULL);
         FILE* f = fopen("./serverUtils/set.txt", "a");
-        fprintf(f, "\n%s-", key);
+        if(empty_file(f))
+            fprintf(f,"%s-",key);
+        else
+            fprintf(f, "\n%s-", key);
         fclose(f);
         return "SET creat cu succes!";
     }
@@ -897,33 +912,6 @@ char* execute_get(char* buffer)
         return bufferToReturn;
     }
 }
-void depthSearchUpdate(searchTree* node)
-{
-    if (node == NULL)
-        return;
-
-    FILE* f;
-    const char* filename;
-    if (node->isList)
-        filename = "./serverUtils/list.txt";
-    else if (node->isSet)
-        filename = "./serverUtils/set.txt";
-    else filename = "./serverUtils/simple.txt";
-
-    f = fopen(filename, "a");
-    if (!node->isList && !node->isSet)
-        fprintf(f, "\n%s-%s", node->key, node->values[0]);
-    else
-    {
-        fprintf(f, "\n%s-", node->key);
-        for (int i = 0; i < node->numberOfElements; i++)
-            fprintf(f, "%s,", node->values[i]);
-    }
-    fclose(f);
-
-    depthSearchUpdate(node->leftNode);
-    depthSearchUpdate(node->rightNode);
-}
 void updateFile(char* key, int type)
 {
     const char* filename;
@@ -982,16 +970,12 @@ void updateFile(char* key, int type)
 
 
 }
-bool firstLine = 0;
 void updateSimple(searchTree* node, FILE* f)
 {
-    if (node == NULL || node->isList || node->isSet)
+    if (node == NULL || node->isList || node->isSet || node->isOrdonated)
         return;
-    if (!firstLine)
-    {
-        fprintf(f, "%s-%s", node->key, node->values[0]);
-        firstLine = true;
-    }
+    if(empty_file(f))
+        fprintf(f,"%s-%s",node->key,node->values[0]);
     else
     {
         fprintf(f, "\n%s-%s", node->key, node->values[0]);
@@ -1015,14 +999,18 @@ char* execute_changev(char* buffer)
     if (node == NULL)
         return "CHEIA DATA NU EXISTA!";
     char** values = node->values;
+    char* val=(char*)malloc(sizeof(char)*50);
+    strcpy(val,values[0]);
     bool isList = node->isList;
     bool isSet = node->isSet;
     bool isOrd = node->isOrdonated;
     int numberOfElements = node->numberOfElements;
-    insertIntoTree(BST, newkey, values, isList, isSet, numberOfElements, isOrd, NULL);
+    BST=insertIntoTree(BST, newkey, values, isList, isSet, numberOfElements, isOrd, NULL);
     deleteNode(BST, oldkey);
     FILE* f = fopen("./serverUtils/simple.txt", "w");
     updateSimple(BST, f);
+    fprintf(f,"\n%s-%s",newkey,val);
+    fflush(f);
     fclose(f);
 
 
@@ -1129,7 +1117,7 @@ char* execute_getrange(char* buffer)
         return "CHEIA NU EXISTA!";
     if (node->isList || node->isSet)
         return "CHEIA ESTE PENTRU SETURI SAU LISTE!";
-    for (int i = start; i < end; i++)
+    for (int i = start; i <= end; i++)
         bufferToReturn[counter++] = node->values[0][i];
     bufferToReturn[counter] = '\0';
     return bufferToReturn;
@@ -1230,6 +1218,9 @@ char* execute_listCreation(char* buffer)
     else
     {
         FILE* f = fopen("./serverUtils/list.txt", "a");
+        if(empty_file(f))
+            fprintf(f,"%s-",key);
+        else
         fprintf(f, "\n%s-", key);
         BST = insertIntoTree(BST, key, values, true, false, 0, false, NULL);
         fclose(f);
@@ -1361,7 +1352,10 @@ char* execute_set(char* buffer)
     {
         BST = insertIntoTree(BST, key, value, false, false, 1, false, NULL);
         FILE* f = fopen("./serverUtils/simple.txt", "a");
-        fprintf(f, "\n%s-%s", key, value[0]);
+        if(empty_file(f))
+            fprintf(f,"%s-%s",key,value[0]);
+        else
+            fprintf(f, "\n%s-%s", key, value[0]);
         fflush(f);
         fclose(f);
         return "OK";
@@ -1411,8 +1405,10 @@ char* execute_lrem(char* buffer)
         return "NU EXISTA O INTRARE PENTRU ACEASTA CHEIE!";
     if (!node->isList)
         return "CHEIA DATA NU ESTE PENTRU O LISTA!";
-    if (index > node->numberOfElements || index < 0)
-        return "INDEXUL ESTE PREA MARE SAU NEGATIV!";
+    if (index >= node->numberOfElements)
+        return "INDEXUL ESTE PREA MARE!";
+    if(index<0)
+        return "INDEX PREA MIC";
     node->numberOfElements--;
     for (int i = index; i < node->numberOfElements; i++)
         strcpy(node->values[i], node->values[i + 1]);
