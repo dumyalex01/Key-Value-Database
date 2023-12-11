@@ -424,7 +424,8 @@ void handle_sigint(int signum) {
 }
 
 int main()
-{   populate_BST();
+{   
+    populate_BST();
     populate_loginList(&loginList);
     establish_connection();
     return 0;
@@ -1008,10 +1009,12 @@ char* execute_changev(char*buffer)
     strcpy(oldkey,word);
     word=strtok(NULL," ");
     strcpy(newkey,word);
+    char* value=malloc(sizeof(char)*50);
     searchTree*node=findElementByKey(BST,oldkey);
     if(node==NULL)
         return "CHEIA DATA NU EXISTA!";
     char**values=node->values;
+    strcpy(value,values[0]);
     bool isList=node->isList;
     bool isSet=node->isSet;
     bool isOrd=node->isOrdonated;
@@ -1020,6 +1023,10 @@ char* execute_changev(char*buffer)
     deleteNode(BST,oldkey);
     FILE*f=fopen("./serverUtils/simple.txt","w");
     updateSimple(BST,f);
+    if(empty_file(f))
+        fprintf(f,"%s-%s",newkey,value);
+    else
+        fprintf(f,"\n%s-%s",newkey,value);
     fclose(f);
 
 
@@ -1602,9 +1609,7 @@ void *run(void *arg) {
  
     runApp(client->clientSocket);
 
-    // Închideți socket-ul clientului și eliberați memoria
-    close(client->clientSocket);
-    free(client);
+    // Închideți socket-ul clientului și eliberați memoriapthread
 
     pthread_exit(NULL);
 }
