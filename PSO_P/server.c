@@ -13,6 +13,14 @@
 #define TYPE_SIMPLE 1
 #define TYPE_LIST 2
 #define TYPE_SET 3
+bool empty_file(FILE*f)
+{
+    fseek(f,0,SEEK_END);
+    int length=ftell(f);
+    if(length>0)
+        return false;
+    return true;
+}
 typedef struct client_info
 {
     int clientSocket;
@@ -200,7 +208,11 @@ searchTree* insertIntoTree(searchTree* node, char* key, char** values, bool hasL
         // Alocare memorie separată pentru values și copierea valorii           
         if(node->isList || node->isSet)
             {
-              node->values=values;
+              node->values = (char**)malloc(sizeof(char*)*100);
+                for(int i=0;i<100;i++)
+                    node->values[i]=(char*)malloc(sizeof(char)*50);
+                for(int i=0;i<numberOfElements;i++)
+                    strcpy(node->values[i],values[i]);
             }
 
         else 
@@ -678,7 +690,10 @@ char*execute_setc(char*buffer)
             values[i]=(char*)malloc(sizeof(char)*100);
         BST=insertIntoTree(BST,key,values,false,true,0,false,NULL);
         FILE*f=fopen("./serverUtils/set.txt","a");
-        fprintf(f,"\n%s-",key);
+        if(empty_file(f))
+            fprintf(f,"%s-",key);
+        else
+            fprintf(f,"\n%s-",key); 
         fclose(f);
         return "SET creat cu succes!";
     }
@@ -903,33 +918,7 @@ char* execute_get(char*buffer)
         return bufferToReturn;
     }
 }
-void depthSearchUpdate(searchTree*node)
-{
-    if(node==NULL)
-        return;
-    
-    FILE*f;
-    const char*filename;
-    if(node->isList)
-        filename="./serverUtils/list.txt";
-    else if(node->isSet)
-            filename="./serverUtils/set.txt";
-    else filename="./serverUtils/simple.txt";
 
-    f=fopen(filename,"a");
-    if(!node->isList && !node->isSet)
-        fprintf(f,"\n%s-%s",node->key,node->values[0]);
-    else
-    {
-        fprintf(f,"\n%s-",node->key);
-        for(int i=0;i<node->numberOfElements;i++)
-            fprintf(f,"%s,",node->values[i]);
-    }
-    fclose(f); 
-
-    depthSearchUpdate(node->leftNode);
-    depthSearchUpdate(node->rightNode);
-}
 void updateFile(char*key,int type)
 {
     const char*filename;
@@ -999,7 +988,10 @@ void updateSimple(searchTree*node,FILE*f)
     }
     else 
     {
-    fprintf(f,"\n%s-%s",node->key,node->values[0]);
+        if(empty_file(f))
+            fprintf(f,"%s-%s",node->key,node->values[0]);
+    else
+        fprintf(f,"\n%s-%s",node->key,node->values[0]);
     }
     fflush(f);
 
@@ -1237,7 +1229,10 @@ char* execute_listCreation(char*buffer)
     else
     {
         FILE*f=fopen("./serverUtils/list.txt","a");
-        fprintf(f,"\n%s-",key);
+        if(empty_file(f))
+            fprintf(f,"%s-",key);
+        else
+            fprintf(f,"\n%s-",key);
         BST=insertIntoTree(BST,key,values,true,false,0,false,NULL);
         fclose(f);
         return "OK";
@@ -1366,7 +1361,10 @@ char* execute_set(char*buffer)
     {
         BST=insertIntoTree(BST,key,value,false,false,1,false,NULL);
         FILE*f=fopen("./serverUtils/simple.txt","a");
-        fprintf(f,"\n%s-%s",key,value[0]);
+        if(empty_file(f))
+            fprintf(f,"%s-%s",key,value[0]);
+        else
+            fprintf(f,"\n%s-%s",key,value[0]);
         fflush(f);
         fclose(f);
         return "OK";
@@ -1653,7 +1651,6 @@ int establish_connection()
             exit(1);
         }
 
-        printf("Clientul %d s-a conectat.\n",newClient->clientSocket);
         pthread_t client_thread;
         pthread_create(&client_thread,NULL,run,(void*)newClient);
     }
