@@ -1,0 +1,17 @@
+LOGOUT: Utilizatorul curent va fi delogat;
+FINISH: Terminarea executiei programului client, cat si a serverului;
+HELP: Va afisa o lista de comenzi disponibile ( cele mentionate mai sus).
+In urma apelarii unei comenzi de catre orice client, se va salva intr-un fisier „logger” cine a executat-o, cat si momentul executiei.
+LOGGER: Afisarea loggerului folosind functia linux „cat” sau „more”. 
+SET key value: Stocheaza o valorea sub o cheie specifica;
+GET key: Obtine valoarea asociata unei chei;
+DEL key: Sterge o cheie si valoarea asociata acesteia;
+RPUSH key value: Adauga o valoare la sfarsitul unei liste asociata unei chei;
+LPUSH key value: Adauga o valoare la inceputul unei liste asociata unei chei;
+LPOP key: Extrage si sterge prima valoare dintr-o lista asociata unei chei;
+RPOP key: Extrage si sterge ultima valoare dintr-o lista asociata unei chei;
+LRANGE KEY start stop: Extrage elementele dintr-o lista asociata cu o cheie incepand de la pozitia „start” si pana la pozitia „stop”;
+SADD key member: Adauga un membru intr-o multime (set) asociata unei chei;
+SREM key member: Sterge un membru dintr-o multime asociata unei chei;
+SMEMBERS key: Obtine toti membrii dintr-un set;
+SISMEMBER key member: Verifica daca un membru exista intr-un set;
