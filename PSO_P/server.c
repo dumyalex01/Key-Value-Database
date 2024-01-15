@@ -424,8 +424,7 @@ void handle_sigint(int signum) {
 }
 
 int main()
-{   
-    populate_BST();
+{   populate_BST();
     populate_loginList(&loginList);
     establish_connection();
     return 0;
@@ -1004,12 +1003,12 @@ char* execute_changev(char*buffer)
 {
     char oldkey[50];
     char newkey[50];
+    char*value=malloc(sizeof(char)*50);
     char*word=strtok(buffer," ");
     word=strtok(NULL," ");
     strcpy(oldkey,word);
     word=strtok(NULL," ");
     strcpy(newkey,word);
-    char* value=malloc(sizeof(char)*50);
     searchTree*node=findElementByKey(BST,oldkey);
     if(node==NULL)
         return "CHEIA DATA NU EXISTA!";
@@ -1030,7 +1029,6 @@ char* execute_changev(char*buffer)
     fclose(f);
 
 
-    //TODO functie de update aici pentru a inlocui cheia in fisier
 
     return "OK";
 
@@ -1603,13 +1601,12 @@ void runApp(int clientSocket)
     cleanup(clientSocket);
 }
 void *run(void *arg) {
-        client_info *client = (client_info *)arg;
-    char buffer[BUFFER_SIZE];
-
- 
+        client_info *client = (client_info *)arg; 
     runApp(client->clientSocket);
 
-    // Închideți socket-ul clientului și eliberați memoriapthread
+    // Închideți socket-ul clientului și eliberați memoria
+    close(client->clientSocket);
+    free(client);
 
     pthread_exit(NULL);
 }
