@@ -48,7 +48,6 @@ typedef struct searchTree
 }searchTree;
 listNode *loginList = NULL;
 searchTree* BST=NULL;
-char user[50];
 void updateFile(char*key,int type);
 bool compare(char*key1,char*key2)
 {
@@ -1559,7 +1558,6 @@ char *execute_login(char *buffer)
             add_logger("Utilizatorul s-a autentificat cu succes!");
             FILE*of=fopen("./serverUtils/online","a");
             fprintf(of,"%s\n",username);
-            strcpy(user,username);
             fclose(of);
             }
         }
@@ -1583,9 +1581,7 @@ void runApp(int clientSocket)
             if (strcmp(buffer, "LOGOUT") == 0)
             {
             strcpy(message, execute_command(buffer));
-            char* buffer=(char*)malloc(sizeof(char)*50);
-            strcat(buffer,user);
-            strcat(buffer," s-a delogat cu succes!");
+            strcpy(buffer,"Utilizatorul s-a delogat cu succes!");
             add_logger(buffer);
             message[strlen(message)]='\0';
             sendMessageToClient(clientSocket, message);
@@ -1704,7 +1700,7 @@ char* execute_logout()
     while(!feof(f))
     {
         fscanf(f,"%s",buff);
-        if(strcmp(buff,user)!=0)
+        if(strcmp(buff,"Utilizatorul s-a delogat")!=0)
             strcpy(users[counter++],buff);
     }
     fclose(f);
@@ -1806,8 +1802,7 @@ bool searchSetByName(searchTree* root, char* setName) {
 char* execute_zadd(char* buffer)
 {
     char* msg_logger=(char*)malloc(sizeof(char)*100);
-    strcpy(msg_logger,user);
-    strcat(msg_logger," a folost comanda ");
+    strcat(msg_logger,"Utilizatorul a folost comanda ");
     strcat(msg_logger,buffer);
     char* ptr;
     char **setname=(char**)malloc(sizeof(char*)*2);
@@ -1816,25 +1811,17 @@ char* execute_zadd(char* buffer)
     values[0]=(char*)malloc(sizeof(char)*40);
     int priorites[1];
     ptr=strtok(buffer," ");
-    printf("\n\n%s\n",ptr);
 
     ptr=strtok(NULL," ");
     setname[0]=(char*)malloc(sizeof(char)*(strlen(ptr)+1));
     strcpy(setname[0],ptr);
     setname[0][strlen(setname[0])]='\0';
-    printf("Codurile ASCII ale caracterelor din setname[0]: ");
-for (int i = 0; i < strlen(setname[0]); i++) {
-    printf("%d ", setname[0][i]);
-}
-printf("\n");
 
 
     int compare=strcasecmp("cheie1",setname[0]);
-    printf("\n\n%s %d\n",setname[0],compare);
 
     ptr=strtok(NULL," ");
     strcpy(values[0],ptr);
-    printf("\n\n%s\n",values[0]);
 
 
     ptr=strtok(NULL," ");
@@ -1888,8 +1875,7 @@ printf("\n");
 char* execute_zcard(char* buffer)
 {
     char* msg_logger=(char*)malloc(sizeof(char)*100);
-    strcpy(msg_logger,user);
-    strcat(msg_logger," a folost comanda ");
+    strcat(msg_logger,"Utilizatorul a folost comanda ");
     strcat(msg_logger,buffer);
 
     char* ptr=strtok(buffer," ");
@@ -1929,8 +1915,7 @@ char* execute_zcard(char* buffer)
 char* execute_zscore(char* buffer)
 {
     char* msg_logger=(char*)malloc(sizeof(char)*100);
-    strcpy(msg_logger,user);
-    strcat(msg_logger," a folost comanda ");
+    strcpy(msg_logger,"Utilizatorul a folost comanda ");
     strcat(msg_logger,buffer);
 
     char* ptr=strtok(buffer," ");
@@ -1985,8 +1970,7 @@ char* execute_zscore(char* buffer)
 char* execute_zcount(char* buffer)
 {
     char* msg_logger=(char*)malloc(sizeof(char)*100);
-    strcpy(msg_logger,user);
-    strcat(msg_logger," a folost comanda ");
+    strcpy(msg_logger,"Utilizatorul a folost comanda ");
     strcat(msg_logger,buffer);
 
     char* messages=(char*)malloc(sizeof(char)*50);
@@ -2161,7 +2145,6 @@ char * execute_zrange(char* buffer)
         strcat(message,node->values[i]);
         strcat(message," ");
     }
-    //TODO mai multe if
     return message;
 }
 
@@ -2220,8 +2203,6 @@ char *execute_zrem(char* buffer)
         perror("Error opening file for writing");
         exit(EXIT_FAILURE);
     }
-
-    // Salvează întregul arbore în fișier
     saveTreeToFile(file, BST);
     strcpy(message,"Elemntul a fost sters cu succes!");
     return message;
